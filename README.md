@@ -11,3 +11,6 @@
 ## 整数集合：intset.c 和 intset.h
 
 ## 压缩列表：ziplist.c 和 ziplist.h
+
+## redis-3.2版本新加入的结构:
+    quicklist结构: quicklist.c 和 quicklist.h
