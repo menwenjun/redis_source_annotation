@@ -1,4 +1,4 @@
-# redis-3.0.7源码注释
+# redis-3.0.7源码注释的文件
 
 ## 链表结构：adlist.c 和 adlist.h
 
@@ -12,5 +12,8 @@
 
 ## 压缩列表：ziplist.c 和 ziplist.h
 
-## redis-3.2版本新加入的结构:
-    quicklist结构: quicklist.c 和 quicklist.h
+# redis-3.2版本注释的文件:
+
+## quicklist结构: quicklist.c 和 quicklist.h
+
+## redis对象系统：object.c 和 server.h(460行-486行)
