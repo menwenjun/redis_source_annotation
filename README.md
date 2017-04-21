@@ -17,3 +17,5 @@
 ## quicklist结构: quicklist.c 和 quicklist.h
 
 ## redis对象系统：object.c 和 server.h(460行-486行)
+
+## redis字符串类型键的实现：t_string.c
