@@ -71,7 +71,7 @@ typedef long long mstime_t; /* millisecond time type. */
 #include "crc64.h"
 
 /* Error codes */
-#define C_OK                    0
+#define _OK                    0
 #define C_ERR                   -1
 
 /* Static server configuration */
@@ -331,8 +331,8 @@ typedef long long mstime_t; /* millisecond time type. */
 #define CONFIG_REPL_SYNCIO_TIMEOUT 5
 
 /* List related stuff */
-#define LIST_HEAD 0
-#define LIST_TAIL 1
+#define LIST_HEAD 0     //列表头
+#define LIST_TAIL 1     //列表尾
 
 /* Sort operations */
 #define SORT_OP_GET 0
@@ -395,8 +395,8 @@ typedef long long mstime_t; /* millisecond time type. */
 #define LUA_SCRIPT_TIME_LIMIT 5000 /* milliseconds */
 
 /* Units */
-#define UNIT_SECONDS 0
-#define UNIT_MILLISECONDS 1
+#define UNIT_SECONDS 0      //单位是秒
+#define UNIT_MILLISECONDS 1 //单位是毫秒
 
 /* SHUTDOWN flags */
 #define SHUTDOWN_NOFLAGS 0      /* No flags. */
@@ -1032,17 +1032,17 @@ typedef struct _redisSortOperation {
 
 /* Structure to hold list iteration abstraction. */
 typedef struct {
-    robj *subject;
-    unsigned char encoding;
-    unsigned char direction; /* Iteration direction */
-    quicklistIter *iter;
-} listTypeIterator;
+    robj *subject;          //迭代器指向的对象
+    unsigned char encoding; //迭代器指向对象的编码类型
+    unsigned char direction;//迭代器的方向
+    quicklistIter *iter;    //quicklist的迭代器
+} listTypeIterator; //列表类型迭代器
 
 /* Structure for an entry while iterating over a list. */
 typedef struct {
-    listTypeIterator *li;
-    quicklistEntry entry; /* Entry in quicklist */
-} listTypeEntry;
+    listTypeIterator *li;   //所属的列表类型迭代器
+    quicklistEntry entry;   //quicklist中的entry结构
+} listTypeEntry;    //列表类型的entry结构
 
 /* Structure to hold set iteration abstraction. */
 typedef struct {
@@ -1164,20 +1164,35 @@ void addReplyStatusFormat(client *c, const char *fmt, ...);
 
 /* List data type */
 void listTypeTryConversion(robj *subject, robj *value);
+// 列表类型的从where插入一个value，PUSH命令的底层实现
 void listTypePush(robj *subject, robj *value, int where);
+// 列表类型的从where弹出一个value，POP命令底层实现
 robj *listTypePop(robj *subject, int where);
+// 返回对象的长度，entry节点个数
 unsigned long listTypeLength(robj *subject);
+// 初始化列表类型的迭代器为一个指定的下标
 listTypeIterator *listTypeInitIterator(robj *subject, long index, unsigned char direction);
+// 释放迭代器空间
 void listTypeReleaseIterator(listTypeIterator *li);
+// 将列表类型的迭代器指向的entry保存在提供的listTypeEntry结构中，并且更新迭代器，1表示成功，0失败
 int listTypeNext(listTypeIterator *li, listTypeEntry *entry);
+// 返回一个节点的value对象，根据当前的迭代器
 robj *listTypeGet(listTypeEntry *entry);
+// 列表类型的插入操作，将value对象插到where
 void listTypeInsert(listTypeEntry *entry, robj *value, int where);
+// 比较列表类型的entry结构与对象的entry节点的值是否等，相等返回1
 int listTypeEqual(listTypeEntry *entry, robj *o);
+// 删除迭代器指向的entry
 void listTypeDelete(listTypeIterator *iter, listTypeEntry *entry);
+// 转换ZIPLIST编码类型为quicklist类型，enc指定OBJ_ENCODING_QUICKLIST
 void listTypeConvert(robj *subject, int enc);
+// 解阻塞一个正在阻塞中的client
 void unblockClientWaitingData(client *c);
+//处理client的阻塞状态
 void handleClientsBlockedOnLists(void);
+// POP命令的底层实现，where保存pop的位置
 void popGenericCommand(client *c, int where);
+//如果有client因为等待一个key被push而被阻塞，那么将这个key放入ready_keys
 void signalListAsReady(redisDb *db, robj *key);
 
 /* MULTI/EXEC/WATCH... */

@@ -19,3 +19,5 @@
 ## redis对象系统：object.c 和 server.h(460行-486行)
 
 ## redis字符串类型键的实现：t_string.c
+
+## redis列表类型键的实现：t_list.c 和 server.h(1032行-1046行 && 1164行-1197行)
