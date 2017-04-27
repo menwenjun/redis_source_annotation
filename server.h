@@ -540,12 +540,16 @@ typedef struct multiState {
  * The fields used depend on client->btype. */
 typedef struct blockingState {
     /* Generic fields. */
+    //阻塞的时间
     mstime_t timeout;       /* Blocking operation timeout. If UNIX current time
                              * is > timeout then the operation timed out. */
 
     /* BLOCKED_LIST */
+    //造成阻塞的键
     dict *keys;             /* The keys we are waiting to terminate a blocking
                              * operation such as BLPOP. Otherwise NULL. */
+    //用于BRPOPLPUSH命令
+    //用于保存PUSH入元素的键，也就是dstkey
     robj *target;           /* The key that should receive the element,
                              * for BRPOPLPUSH. */
 
@@ -1057,17 +1061,19 @@ typedef struct {
  * not both are required, store pointers in the iterator to avoid
  * unnecessary memory allocation for fields/values. */
 typedef struct {
-    robj *subject;
-    int encoding;
+    robj *subject;              // 哈希类型迭代器所属的哈希对象
+    int encoding;               // 哈希对象的编码类型
 
-    unsigned char *fptr, *vptr;
+    // ziplist
+    unsigned char *fptr, *vptr; // 指向当前的key和value节点的地址，ziplist类型编码时使用
 
-    dictIterator *di;
-    dictEntry *de;
+    // 字典
+    dictIterator *di;           // 迭代HT类型的哈希对象时的字典迭代器
+    dictEntry *de;              // 指向当前的哈希表节点
 } hashTypeIterator;
 
-#define OBJ_HASH_KEY 1
-#define OBJ_HASH_VALUE 2
+#define OBJ_HASH_KEY 1          // 哈希键
+#define OBJ_HASH_VALUE 2        // 哈希值
 
 /*-----------------------------------------------------------------------------
  * Extern declarations
@@ -1384,23 +1390,38 @@ unsigned long setTypeSize(robj *subject);
 void setTypeConvert(robj *subject, int enc);
 
 /* Hash data type */
+// 转换一个哈希对象的编码类型，enc指定新的编码类型
 void hashTypeConvert(robj *o, int enc);
+// 检查一个数字对象的长度判断是否需要进行类型的转换，从ziplist转换到ht类型
 void hashTypeTryConversion(robj *subject, robj **argv, int start, int end);
+// 对键和值的对象尝试进行优化编码以节约内存
 void hashTypeTryObjectEncoding(robj *subject, robj **o1, robj **o2);
+// 从一个哈希对象中返回field对应的值对象
 robj *hashTypeGetObject(robj *o, robj *key);
+// 判断field对象是否存在在o对象中
 int hashTypeExists(robj *o, robj *key);
+//  将field-value添加到哈希对象中，返回1，如果field存在更新新的值，返回0
 int hashTypeSet(robj *o, robj *key, robj *value);
+// 从一个哈希对象中删除field，成功返回1，没找到field返回0
 int hashTypeDelete(robj *o, robj *key);
+// 返回哈希对象中的键值对个数
 unsigned long hashTypeLength(robj *o);
+// 返回一个初始化的哈希类型的迭代器
 hashTypeIterator *hashTypeInitIterator(robj *subject);
+// 释放哈希类型迭代器空间
 void hashTypeReleaseIterator(hashTypeIterator *hi);
+// 讲哈希类型迭代器指向哈希对象中的下一个节点
 int hashTypeNext(hashTypeIterator *hi);
+// 从ziplist类型的哈希类型迭代器中获取对应的field或value，保存在参数中
 void hashTypeCurrentFromZiplist(hashTypeIterator *hi, int what,
                                 unsigned char **vstr,
                                 unsigned int *vlen,
                                 long long *vll);
+// 从ziplist类型的哈希类型迭代器中获取对应的field或value，保存在参数中
 void hashTypeCurrentFromHashTable(hashTypeIterator *hi, int what, robj **dst);
+// 从哈希类型的迭代器中获取键或值
 robj *hashTypeCurrentObject(hashTypeIterator *hi, int what);
+// 以写操作在数据库中查找对应key的哈希对象，如果不存在则创建
 robj *hashTypeLookupWriteOrCreate(client *c, robj *key);
 
 /* Pub / Sub */
