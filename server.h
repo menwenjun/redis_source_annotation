@@ -1050,10 +1050,10 @@ typedef struct {
 
 /* Structure to hold set iteration abstraction. */
 typedef struct {
-    robj *subject;
-    int encoding;
-    int ii; /* intset iterator */
-    dictIterator *di;
+    robj *subject;                  //所属的集合对象
+    int encoding;                   //集合对象编码类型
+    int ii; /* intset iterator */   //整数集合的迭代器，编码为INTSET使用
+    dictIterator *di;               //字典的迭代器，编码为HT使用
 } setTypeIterator;
 
 /* Structure to hold hash iteration abstraction. Note that iteration over
@@ -1376,17 +1376,29 @@ const char *evictPolicyToString(void);
 int restartServer(int flags, mstime_t delay);
 
 /* Set data type */
+// 创建一个保存value的集合
 robj *setTypeCreate(robj *value);
+// 向subject集合中添加value，添加成功返回1，如果已经存在返回0
 int setTypeAdd(robj *subject, robj *value);
+// 从集合对象中删除一个值为value的元素，删除成功返回1，失败返回0
 int setTypeRemove(robj *subject, robj *value);
+// 集合中是否存在值为value的元素，存在返回1，否则返回0
 int setTypeIsMember(robj *subject, robj *value);
+// 创建并初始化一个集合类型的迭代器
 setTypeIterator *setTypeInitIterator(robj *subject);
+// 释放迭代器空间
 void setTypeReleaseIterator(setTypeIterator *si);
+// 将当前迭代器指向的元素保存在objele或llele中，迭代完毕返回-1
+// 返回的对象的引用技术不增加，支持 读时共享写时复制
 int setTypeNext(setTypeIterator *si, robj **objele, int64_t *llele);
+// 返回迭代器当前指向的元素对象的地址，需要手动释放返回的对象
 robj *setTypeNextObject(setTypeIterator *si);
+// 从集合中随机取出一个对象，保存在参数中
 int setTypeRandomElement(robj *setobj, robj **objele, int64_t *llele);
 unsigned long setTypeRandomElements(robj *set, unsigned long count, robj *aux_set);
+// 返回集合的元素数量
 unsigned long setTypeSize(robj *subject);
+// 将集合对象的INTSET编码类型转换为enc类型
 void setTypeConvert(robj *subject, int enc);
 
 /* Hash data type */
