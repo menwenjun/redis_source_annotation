@@ -48,7 +48,7 @@
 #include <lua.h>
 #include <signal.h>
 
-typedef long long mstime_t; /* millisecond time type. */
+typedef long long mstime_t; /* 毫秒时间类型millisecond time type. */
 
 #include "ae.h"      /* Event driven programming library */
 #include "sds.h"     /* Dynamic safe strings */
@@ -71,7 +71,7 @@ typedef long long mstime_t; /* millisecond time type. */
 #include "crc64.h"
 
 /* Error codes */
-#define _OK                    0
+#define C_OK                    0
 #define C_ERR                   -1
 
 /* Static server configuration */
@@ -399,10 +399,10 @@ typedef long long mstime_t; /* millisecond time type. */
 #define UNIT_MILLISECONDS 1 //单位是毫秒
 
 /* SHUTDOWN flags */
-#define SHUTDOWN_NOFLAGS 0      /* No flags. */
-#define SHUTDOWN_SAVE 1         /* Force SAVE on SHUTDOWN even if no save
+#define SHUTDOWN_NOFLAGS 0      /* 不指定标志 No flags. */
+#define SHUTDOWN_SAVE 1         /* 指定停机保存标志即使配置了SHUTDOWN_NOSAVE标志 Force SAVE on SHUTDOWN even if no save
                                    points are configured. */
-#define SHUTDOWN_NOSAVE 2       /* Don't SAVE on SHUTDOWN. */
+#define SHUTDOWN_NOSAVE 2       /* 指定停机不保存标志 Don't SAVE on SHUTDOWN. */
 
 /* Command call flags, see call() function */
 #define CMD_CALL_NONE 0
@@ -504,7 +504,9 @@ typedef struct redisObject {
  * Empty entries have the key pointer set to NULL. */
 #define MAXMEMORY_EVICTION_POOL_SIZE 16
 struct evictionPoolEntry {
+    // 空转时间
     unsigned long long idle;    /* Object idle time. */
+    // 键名称，一个字符串
     sds key;                    /* Key name. */
 };
 
@@ -512,13 +514,22 @@ struct evictionPoolEntry {
  * by integers from 0 (the default database) up to the max configured
  * database. The database number is the 'id' field in the structure. */
 typedef struct redisDb {
+    // 键值对字典，保存数据库中所有的键值对
     dict *dict;                 /* The keyspace for this DB */
+    // 过期字典，保存着设置过期的键和键的过期时间
     dict *expires;              /* Timeout of keys with a timeout set */
-    dict *blocking_keys;        /* Keys with clients waiting for data (BLPOP) */
+    // 保存着 所有造成客户端阻塞的键和被阻塞的客户端
+    dict *blocking_keys;        /*Keys with clients waiting for data (BLPOP) */
+    // 保存着 处于阻塞状态的键，value为NULL
     dict *ready_keys;           /* Blocked keys that received a PUSH */
+    // 事物模块，用于保存被WATCH命令所监控的键
     dict *watched_keys;         /* WATCHED keys for MULTI/EXEC CAS */
+    // 当内存不足时，Redis会根据LRU算法回收一部分键所占的空间，而该eviction_pool是一个长为16数组，保存可能被回收的键
+    // eviction_pool中所有键按照idle空转时间，从小到大排序，每次回收空转时间最长的键
     struct evictionPoolEntry *eviction_pool;    /* Eviction pool of keys */
+    // 数据库ID
     int id;                     /* Database ID */
+    // 键的平均过期时间
     long long avg_ttl;          /* Average TTL, just for stats */
 } redisDb;
 
@@ -651,25 +662,25 @@ struct sharedObjectsStruct {
 
 /* ZSETs use a specialized version of Skiplists */
 typedef struct zskiplistNode {
-    robj *obj;
-    double score;
-    struct zskiplistNode *backward;
+    robj *obj;                          //保存成员对象的地址
+    double score;                       //分值
+    struct zskiplistNode *backward;     //后退指针
     struct zskiplistLevel {
-        struct zskiplistNode *forward;
-        unsigned int span;
-    } level[];
+        struct zskiplistNode *forward;  //前进指针
+        unsigned int span;              //跨度
+    } level[];                          //层级，柔型数组
 } zskiplistNode;
 
 typedef struct zskiplist {
-    struct zskiplistNode *header, *tail;
-    unsigned long length;
-    int level;
+    struct zskiplistNode *header, *tail;//header指向跳跃表的表头节点，tail指向跳跃表的表尾节点
+    unsigned long length;       //跳跃表的长度或跳跃表节点数量计数器，除去第一个节点
+    int level;                  //跳跃表中节点的最大层数，除了第一个节点
 } zskiplist;
 
 typedef struct zset {
-    dict *dict;
-    zskiplist *zsl;
-} zset;
+    dict *dict;         //字典
+    zskiplist *zsl;     //跳跃表
+} zset; //有序集合类型
 
 typedef struct clientBufferLimitsConfig {
     unsigned long long hard_limit_bytes;
@@ -1000,19 +1011,32 @@ typedef struct pubsubPattern {
 
 typedef void redisCommandProc(client *c);
 typedef int *redisGetKeysProc(struct redisCommand *cmd, robj **argv, int argc, int *numkeys);
+
+// redis命令结构
 struct redisCommand {
+    // 命令名称
     char *name;
+    // proc函数指针，指向返回值为void，参数为client *c的函数
+    // 指向实现命令的函数
     redisCommandProc *proc;
+    // 参数个数
     int arity;
+    // 字符串形式的标示值
     char *sflags; /* Flags as string representation, one char per flag. */
+    // 实际的标示值
     int flags;    /* The actual flags, obtained from the 'sflags' field. */
     /* Use a function to determine keys arguments in a command line.
      * Used for Redis Cluster redirect. */
+    // getkeys_proc是函数指针，返回值是有个整型的数组
+    // 从命令行判断该命令的参数
     redisGetKeysProc *getkeys_proc;
     /* What keys should be loaded in background when calling this command? */
-    int firstkey; /* The first argument that's a key (0 = no keys) */
-    int lastkey;  /* The last argument that's a key */
-    int keystep;  /* The step between first and last key */
+    // 指定哪些参数是key
+    int firstkey; /* 第一个参数是 key The first argument that's a key (0 = no keys) */
+    int lastkey;  /* 最后一个参数是 key The last argument that's a key */
+    int keystep;  /* 第一个参数和最后一个参数的步长  The step between first and last key */
+    // microseconds记录执行命令的耗费总时长
+    // calls记录命令被执行的总次数
     long long microseconds, calls;
 };
 
@@ -1309,30 +1333,51 @@ unsigned long aofRewriteBufferSize(void);
 
 /* Struct to hold a inclusive/exclusive range spec by score comparison. */
 typedef struct {
-    double min, max;
+    double min, max;    //最小值和最大值
+
+    //minex表示最小值是否包含在这个范围，1表示不包含，0表示包含
+    //同理maxex表示最大值
     int minex, maxex; /* are min or max exclusive? */
 } zrangespec;
 
 /* Struct to hold an inclusive/exclusive range spec by lexicographic comparison. */
 typedef struct {
-    robj *min, *max;  /* May be set to shared.(minstring|maxstring) */
+    robj *min, *max;  /* May be set to shared.(minstring|maxstring) *///最小值和最大值
+
+    //minex表示最小值是否包含在这个范围，1表示不包含，0表示包含
+    //同理maxex表示最大值
     int minex, maxex; /* are min or max exclusive? */
 } zlexrangespec;
 
+//创建返回一个跳跃表 表头zskiplist
 zskiplist *zslCreate(void);
+//释放跳跃表表头zsl，以及跳跃表节点
 void zslFree(zskiplist *zsl);
+// 创建一个节点，分数为score，对象为obj，插入到zsl表头管理的跳跃表中，并返回新节点的地址
 zskiplistNode *zslInsert(zskiplist *zsl, double score, robj *obj);
+// 将ele元素和分值score插入在ziplist中，从小到大排序
 unsigned char *zzlInsert(unsigned char *zl, robj *ele, double score);
+//删除score和obj的节点
 int zslDelete(zskiplist *zsl, double score, robj *obj);
+//返回第一个分数在range范围内的节点
 zskiplistNode *zslFirstInRange(zskiplist *zsl, zrangespec *range);
+//返回最后一个分数在range范围内的节点
 zskiplistNode *zslLastInRange(zskiplist *zsl, zrangespec *range);
+// 从sptr指向的entry中取出有序集合的分值
 double zzlGetScore(unsigned char *sptr);
+// 将当前的元素指针eptr和当前元素分值的指针sptr都指向下一个元素和元素的分值
 void zzlNext(unsigned char *zl, unsigned char **eptr, unsigned char **sptr);
+// 将当前的元素指针eptr和当前元素分值的指针sptr都指向上一个元素和元素的分值
 void zzlPrev(unsigned char *zl, unsigned char **eptr, unsigned char **sptr);
+// 返回有序集合的元素个数
 unsigned int zsetLength(robj *zobj);
+// 将有序集合对象的编码转换为encoding制定的编码类型
 void zsetConvert(robj *zobj, int encoding);
+// 按需转换编码成OBJ_ENCODING_ZIPLIST
 void zsetConvertToZiplistIfNeeded(robj *zobj, size_t maxelelen);
+// 将有序集合的member成员的分值保存到score中
 int zsetScore(robj *zobj, robj *member, double *score);
+//查找score和o对象在跳跃表中的排位
 unsigned long zslGetRank(zskiplist *zsl, double score, robj *o);
 
 /* Core functions */
@@ -1468,8 +1513,8 @@ robj *lookupKeyWrite(redisDb *db, robj *key);
 robj *lookupKeyReadOrReply(client *c, robj *key, robj *reply);
 robj *lookupKeyWriteOrReply(client *c, robj *key, robj *reply);
 robj *lookupKeyReadWithFlags(redisDb *db, robj *key, int flags);
-#define LOOKUP_NONE 0
-#define LOOKUP_NOTOUCH (1<<0)
+#define LOOKUP_NONE 0               //zero，没有特殊意义
+#define LOOKUP_NOTOUCH (1<<0)       //不修改键的使用时间
 void dbAdd(redisDb *db, robj *key, robj *val);
 void dbOverwrite(redisDb *db, robj *key, robj *val);
 void setKey(redisDb *db, robj *key, robj *val);
