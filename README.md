@@ -20,5 +20,6 @@
 | redis 有序集合类型键的实现 |     t_zset.c 和 server.h(1308行-1358行)     |
 |   redis 数据库实现    |        db.c 和 server.h(505行-535行)        |
 | redis IO层的抽象rio  |              rio.c 和 rio.h               |
+| redis RDB持久化的实现  |              rdb.c 和 rdb.h               |
 
  
