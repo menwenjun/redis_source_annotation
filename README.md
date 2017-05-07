@@ -21,5 +21,6 @@
 |   redis 数据库实现    |        db.c 和 server.h(505行-535行)        |
 | redis IO层的抽象rio  |              rio.c 和 rio.h               |
 | redis RDB持久化的实现  |              rdb.c 和 rdb.h               |
+| redis AOF持久化的实现  |                  aof.c                   |
 
  

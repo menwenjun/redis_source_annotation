@@ -160,7 +160,7 @@ typedef long long mstime_t; /* 毫秒时间类型millisecond time type. */
 #define PROTO_INLINE_MAX_SIZE   (1024*64) /* Max size of inline reads */
 #define PROTO_MBULK_BIG_ARG     (1024*32)
 #define LONG_STR_SIZE      21          /* Bytes needed for long -> str + '\0' */
-#define AOF_AUTOSYNC_BYTES (1024*1024*32) /* fdatasync every 32MB */
+#define AOF_AUTOSYNC_BYTES (1024*1024*32) /* 自动执行同步的限制 fdatasync every 32MB */
 
 /* When configuring the server eventloop, we setup it so that the total number
  * of file descriptors we can handle are server.maxclients + RESERVED_FDS +
@@ -358,9 +358,9 @@ typedef long long mstime_t; /* 毫秒时间类型millisecond time type. */
 #define ZSKIPLIST_P 0.25      /* Skiplist P = 1/4 */
 
 /* Append only defines */
-#define AOF_FSYNC_NO 0
-#define AOF_FSYNC_ALWAYS 1
-#define AOF_FSYNC_EVERYSEC 2
+#define AOF_FSYNC_NO 0           //不执行同步，由系统执行
+#define AOF_FSYNC_ALWAYS 1       //每次写入都执行同步
+#define AOF_FSYNC_EVERYSEC 2     //每秒同步一次
 #define CONFIG_DEFAULT_AOF_FSYNC AOF_FSYNC_EVERYSEC
 
 /* Zip structure related defaults */
@@ -542,6 +542,7 @@ typedef struct multiCmd {
     struct redisCommand *cmd;
 } multiCmd;
 
+// 事物状态
 typedef struct multiState {
     multiCmd *commands;     /* Array of MULTI commands */
     int count;              /* Total number of MULTI commands */
@@ -597,7 +598,11 @@ typedef struct client {
     redisDb *db;            /* Pointer to currently SELECTed DB. */
     int dictid;             /* ID of the currently SELECTed DB. */
     robj *name;             /* As set by CLIENT SETNAME. */
+
+    // 查询缓存
     sds querybuf;           /* Buffer we use to accumulate client queries. */
+
+    // 查询缓存的峰值
     size_t querybuf_peak;   /* Recent (100ms or more) peak of querybuf size. */
     int argc;               /* Num of arguments of current command. */
     robj **argv;            /* Arguments of current command. */
@@ -605,7 +610,10 @@ typedef struct client {
     int reqtype;            /* Request protocol type: PROTO_REQ_* */
     int multibulklen;       /* Number of multi bulk arguments left to read. */
     long bulklen;           /* Length of bulk argument in multi bulk request. */
+
+    // 回复缓存列表
     list *reply;            /* List of reply objects to send to the client. */
+    // 回复缓存列表对象的总字节数
     unsigned long long reply_bytes; /* Tot bytes of objects in reply list. */
     size_t sentlen;         /* Amount of bytes already sent in the current
                                buffer or object being sent. */
@@ -632,10 +640,14 @@ typedef struct client {
     int slave_listening_port; /* As configured with: REPLCONF listening-port */
     char slave_ip[NET_IP_STR_LEN]; /* Optionally given by REPLCONF ip-address */
     int slave_capa;         /* Slave capabilities: SLAVE_CAPA_* bitwise OR. */
+
+    // 事物状态
     multiState mstate;      /* MULTI/EXEC state */
     int btype;              /* Type of blocking op if CLIENT_BLOCKED. */
     blockingState bpop;     /* blocking state */
     long long woff;         /* Last write global replication offset. */
+
+    // 监控列表
     list *watched_keys;     /* Keys WATCHED for MULTI/EXEC CAS */
     dict *pubsub_channels;  /* channels a client is interested in (SUBSCRIBE) */
     list *pubsub_patterns;  /* patterns a client is interested in (SUBSCRIBE) */
@@ -795,6 +807,8 @@ struct redisServer {
 
     // 载入的开始时间
     time_t loading_start_time;
+
+    // 在load时，用来设置读或写的最大字节数max_processing_chunk
     off_t loading_process_events_interval_bytes;
     /* Fast pointers to often looked up command ×××××××××××××××××××××××××××××××××××××××××××××××*/
     struct redisCommand *delCommand, *multiCommand, *lpushCommand, *lpopCommand,
@@ -811,7 +825,7 @@ struct redisServer {
     // 服务器内存使用的
     size_t stat_peak_memory;        /* Max used memory record */
 
-    // 计算fork()的时间
+    // 计算fork()消耗的时间
     long long stat_fork_time;       /* Time needed to perform latest fork() */
 
     // 计算fork的速率，GB/每秒
@@ -847,39 +861,76 @@ struct redisServer {
     int daemonize;                  /* True if running as a daemon */
     clientBufferLimitsConfig client_obuf_limits[CLIENT_TYPE_OBUF_COUNT];
     /* AOF persistence ××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××*/
+    // AOF的状态，开启|关闭|等待重写
     int aof_state;                  /* AOF_(ON|OFF|WAIT_REWRITE) */
+
+    // 同步策略
     int aof_fsync;                  /* Kind of fsync() policy */
+
+    // AOf文件的名字
     char *aof_filename;             /* Name of the AOF file */
+    // 如果正在执行AOF重写，设置为1
     int aof_no_fsync_on_rewrite;    /* Don't fsync if a rewrite is in prog. */
     int aof_rewrite_perc;           /* Rewrite AOF if % growth is > M and... */
     off_t aof_rewrite_min_size;     /* the AOF file is at least N bytes. */
     off_t aof_rewrite_base_size;    /* AOF size on latest startup or rewrite. */
+
+    // AOF文件当前的大小
     off_t aof_current_size;         /* AOF current size. */
+
+    // 将AOF持久化提上日程，当RDB的BGSAVE结束后，立即执行AOF重写
     int aof_rewrite_scheduled;      /* Rewrite once BGSAVE terminates. */
+    // 正在执行AOF操作的子进程id
     pid_t aof_child_pid;            /* PID if rewriting process */
+
+    // AOF缓冲块的链表
     list *aof_rewrite_buf_blocks;   /* Hold changes during an AOF rewrite. */
+
+    // AOF缓冲区，在进入事件loop之前写入
     sds aof_buf;      /* AOF buffer, written before entering the event loop */
+
+    // AOF文件的文件描述符
     int aof_fd;       /* File descriptor of currently selected AOF file */
+
+    // 执行AOF时，当前的数据库id
     int aof_selected_db; /* Currently selected DB in AOF */
+
+    // 延迟执行flush操作的开始时间
     time_t aof_flush_postponed_start; /* UNIX time of postponed AOF flush */
+
+    // AOF最近一次同步的时间
     time_t aof_last_fsync;            /* UNIX time of last fsync() */
+
     time_t aof_rewrite_time_last;   /* Time used by last AOF rewrite run. */
+
+    // AOF开始的时间
     time_t aof_rewrite_time_start;  /* Current AOF rewrite start time. */
     int aof_lastbgrewrite_status;   /* C_OK or C_ERR */
+
+    // 延迟fsync的次数
     unsigned long aof_delayed_fsync;  /* delayed AOF fsync() counter */
+    // 重写时是否开启增量式同步，每次写入AOF_AUTOSYNC_BYTES个字节，就执行一次同步
     int aof_rewrite_incremental_fsync;/* fsync incrementally while rewriting? */
     int aof_last_write_status;      /* C_OK or C_ERR */
+
+    // 如果AOF最近一个写状态为错误的，则为真
     int aof_last_write_errno;       /* Valid if aof_last_write_status is ERR */
+
+    // 在不是所预期的AOF结尾的地方继续加载
+    // 如果发现末尾命令不完整则自动截掉,成功加载前面正确的数据。
     int aof_load_truncated;         /* Don't stop on unexpected AOF EOF. */
     /* AOF pipes used to communicate between parent and child during rewrite. ××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××*/
-    int aof_pipe_write_data_to_child;
-    int aof_pipe_read_data_from_parent;
-    int aof_pipe_write_ack_to_parent;
-    int aof_pipe_read_ack_from_child;
-    int aof_pipe_write_ack_to_child;
-    int aof_pipe_read_ack_from_parent;
+    int aof_pipe_write_data_to_child;   //父进程写给子进程的文件描述符
+    int aof_pipe_read_data_from_parent; //子进程从父进程读的文件描述符
+    int aof_pipe_write_ack_to_parent;   //子进程写ack给父进程的文件描述符
+    int aof_pipe_read_ack_from_child;   //父进程从子进程读ack的文件描述符
+    int aof_pipe_write_ack_to_child;    //父进程写ack给子进程的文件描述符
+    int aof_pipe_read_ack_from_parent;  //子进程从父进程读ack的文件描述符
+
+    // 如果为真，则停止发送累计的不同数据给子进程
     int aof_stop_sending_diff;     /* If true stop sending accumulated diffs
                                       to child process. */
+    // 保存子进程AOF时差异累计数据的sds
     sds aof_child_diff;             /* AOF diff accumulator child side. */
     /* RDB persistence ××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××*/
     // 脏键，记录数据库被修改的次数
@@ -1016,7 +1067,7 @@ struct redisServer {
     int list_max_ziplist_size;
     int list_compress_depth;
     /* time cache ××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××*/
-    // 保存秒单位的Unix时间戳的缓存
+    // 保存秒单位的Unix时间戳的缓存，每次重启时设置
     time_t unixtime;        /* Unix time sampled every cron cycle. */
 
     // 保存毫秒单位的Unix时间戳的缓存
