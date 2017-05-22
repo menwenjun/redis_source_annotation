@@ -135,6 +135,8 @@ typedef long long mstime_t; /* 毫秒时间类型millisecond time type. */
 #define CONFIG_DEFAULT_AOF_REWRITE_INCREMENTAL_FSYNC 1
 #define CONFIG_DEFAULT_MIN_SLAVES_TO_WRITE 0
 #define CONFIG_DEFAULT_MIN_SLAVES_MAX_LAG 10
+// 46 here is to support ipv4-mapped-on-ipv6
+// 0000:0000:0000:0000:0000:FFFF:111.222.212.222
 #define NET_IP_STR_LEN 46 /* INET6_ADDRSTRLEN is 46, but we need to be sure */
 #define NET_PEER_ID_LEN (NET_IP_STR_LEN+32) /* Must be enough for ip:port */
 #define CONFIG_BINDADDR_MAX 16
@@ -162,6 +164,7 @@ typedef long long mstime_t; /* 毫秒时间类型millisecond time type. */
 #define PROTO_REPLY_CHUNK_BYTES (16*1024) /* 16k output buffer */
 #define PROTO_INLINE_MAX_SIZE   (1024*64) /* Max size of inline reads */
 #define PROTO_MBULK_BIG_ARG     (1024*32)
+// long类型转换为字符串所能使用的最大字节数
 #define LONG_STR_SIZE      21          /* Bytes needed for long -> str + '\0' */
 #define AOF_AUTOSYNC_BYTES (1024*1024*32) /* 自动执行同步的限制 fdatasync every 32MB */
 
@@ -267,12 +270,13 @@ typedef long long mstime_t; /* 毫秒时间类型millisecond time type. */
 #define CLIENT_CLOSE_ASAP (1<<10)/* Close this client ASAP */
 #define CLIENT_UNIX_SOCKET (1<<11) /* Client connected via Unix domain socket */
 #define CLIENT_DIRTY_EXEC (1<<12)  /* EXEC will fail for errors while queueing */
-// 即使是主节点服务器，强制进行回复
+// 强制进行回复
 #define CLIENT_MASTER_FORCE_REPLY (1<<13)  /* Queue replies even if is master */
 // 强制将节点传播到AOF中
 #define CLIENT_FORCE_AOF (1<<14)   /* Force AOF propagation of current cmd. */
 // 强制将命令传播到从节点
 #define CLIENT_FORCE_REPL (1<<15)  /* Force replication of current cmd. */
+// Redis 2.8版本以前只有SYNC命令，该这个宏来标记client的版本以便选择不同的同步命令
 #define CLIENT_PRE_PSYNC (1<<16)   /* Instance don't understand PSYNC. */
 #define CLIENT_READONLY (1<<17)    /* Cluster client is in read-only state. */
 #define CLIENT_PUBSUB (1<<18)      /* Client is in Pub/Sub mode. */
@@ -317,22 +321,32 @@ typedef long long mstime_t; /* 毫秒时间类型millisecond time type. */
  * what to do next. */
 // replication关闭状态
 #define REPL_STATE_NONE 0 /* No active replication */
-//
+// 必须重新连接主节点
 #define REPL_STATE_CONNECT 1 /* Must connect to master */
+// 处于和主节点正在连接的状态
 #define REPL_STATE_CONNECTING 2 /* Connecting to master */
 /* --- Handshake states, must be ordered --- */
+// 握手状态，有序
+// 等待主节点回复PING命令一个PONG
 #define REPL_STATE_RECEIVE_PONG 3 /* Wait for PING reply */
+// 发送认证命令AUTH给主节点
 #define REPL_STATE_SEND_AUTH 4 /* Send AUTH to master */
+// 设置状态为等待接受认证回复
 #define REPL_STATE_RECEIVE_AUTH 5 /* Wait for AUTH reply */
+// 发送从节点的端口号
 #define REPL_STATE_SEND_PORT 6 /* Send REPLCONF listening-port */
+// 接受一个从节点监听端口号
 #define REPL_STATE_RECEIVE_PORT 7 /* Wait for REPLCONF reply */
 #define REPL_STATE_SEND_IP 8 /* Send REPLCONF ip-address */
 #define REPL_STATE_RECEIVE_IP 9 /* Wait for REPLCONF reply */
+// 发送一个
 #define REPL_STATE_SEND_CAPA 10 /* Send REPLCONF capa */
 #define REPL_STATE_RECEIVE_CAPA 11 /* Wait for REPLCONF reply */
 #define REPL_STATE_SEND_PSYNC 12 /* Send PSYNC */
+// 等待一个PSYNC回复
 #define REPL_STATE_RECEIVE_PSYNC 13 /* Wait for PSYNC reply */
 /* --- End of handshake states --- */
+// 正从主节点接受RDB文件
 #define REPL_STATE_TRANSFER 14 /* Receiving .rdb from master */
 // 和主节点保持连接
 #define REPL_STATE_CONNECTED 15 /* Connected to master */
@@ -341,7 +355,9 @@ typedef long long mstime_t; /* 毫秒时间类型millisecond time type. */
  * In SEND_BULK and ONLINE state the slave receives new updates
  * in its output queue. In the WAIT_BGSAVE states instead the server is waiting
  * to start the next background saving in order to send updates to it. */
+// 从服务器节点等待BGSAVE节点的开始，因此要生成一个新的RDB文件
 #define SLAVE_STATE_WAIT_BGSAVE_START 6 /* We need to produce a new RDB file. */
+// 已经创建子进程执行写RDB操作，等待完成
 #define SLAVE_STATE_WAIT_BGSAVE_END 7 /* Waiting RDB file creation to finish. */
 // 正在发送RDB文件给从节点
 #define SLAVE_STATE_SEND_BULK 8 /* Sending RDB file to slave. */
@@ -350,6 +366,7 @@ typedef long long mstime_t; /* 毫秒时间类型millisecond time type. */
 
 /* Slave capabilities. */
 #define SLAVE_CAPA_NONE 0
+// 能够解析出RDB文件的EOF流格式
 #define SLAVE_CAPA_EOF (1<<0)   /* Can parse the RDB EOF streaming format. */
 
 /* Synchronous read timeout - slave side */
@@ -665,7 +682,7 @@ typedef struct client {
     int authenticated;      /* When requirepass is non-NULL. */
     // 从节点的复制状态
     int replstate;          /* Replication state if this is a slave. */
-    // 设置从节点的写处理器为ack，是否在slave向master发送ack，
+    // 在ack上设置从节点的写处理器，是否在slave向master发送ack，
     int repl_put_online_on_ack; /* Install slave write handler on ACK. */
     // 保存主服务器传来的RDB文件的文件描述符
     int repldbfd;           /* Replication DB file descriptor. */
@@ -673,7 +690,7 @@ typedef struct client {
     off_t repldboff;        /* Replication DB file offset. */
     // 主服务器传来的RDB文件的大小
     off_t repldbsize;       /* Replication DB file size. */
-    // 主服务器传来的RDB文件的字符串形式的大小
+    // 主服务器传来的RDB文件的大小，符合协议的字符串形式
     sds replpreamble;       /* Replication DB preamble. */
     // replication复制的偏移量
     long long reploff;      /* Replication offset if this is our master. */
@@ -681,6 +698,7 @@ typedef struct client {
     long long repl_ack_off; /* Replication ack offset, if this is a slave. */
     // 通过ack命令接收到的偏移量所用的时间
     long long repl_ack_time;/* Replication ack time, if this is a slave. */
+    // FULLRESYNC回复给从节点的offset
     long long psync_initial_offset; /* FULLRESYNC reply offset other slaves
                                        copying this slave output buffer
                                        should use. */
@@ -839,10 +857,12 @@ struct redisServer {
     int arch_bits;              /* 32 or 64 depending on sizeof(long) */
     // serverCron()函数运行的次数
     int cronloops;              /* Number of times the cron function run */
+    // 服务器每次重启都会分配一个ID
     char runid[CONFIG_RUN_ID_SIZE+1];  /* ID always different at every exec. */
     // 哨兵模式
     int sentinel_mode;          /* True if this instance is a Sentinel. */
     /* Networking ××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××*/
+    // TCP监听的端口
     int port;                   /* TCP listening port */
     // listen()函数的backlog参数，提示系统该进程要入队的未完成连接请求的数量。默认值为128
     int tcp_backlog;            /* TCP listen() backlog */
@@ -920,7 +940,9 @@ struct redisServer {
     double stat_fork_rate;          /* Fork rate in GB/sec. */
     // 因为最大连接数限制而被拒绝的client个数
     long long stat_rejected_conn;   /* Clients rejected because of maxclients */
+    // 执行全量重同步的次数
     long long stat_sync_full;       /* Number of full resyncs with slaves. */
+    // 接受PSYNC请求的个数
     long long stat_sync_partial_ok; /* Number of accepted PSYNC requests. */
     long long stat_sync_partial_err;/* Number of unaccepted PSYNC requests. */
     list *slowlog;                  /* SLOWLOG list of commands */
@@ -1103,16 +1125,24 @@ struct redisServer {
     char *syslog_ident;             /* Syslog ident */
     int syslog_facility;            /* Syslog facility */
     /* Replication (master) ×××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××*/
+    // 复制缓冲区最近一次使用的数据库
     int slaveseldb;                 /* Last SELECTed DB in replication output */
     // 全局的复制偏移量
     long long master_repl_offset;   /* Global replication offset */
+    // 每N秒，主节点PING从节点
     int repl_ping_slave_period;     /* Master pings the slave every N seconds */
+    // 复制积压缓冲区backlog，用于局部同步
     char *repl_backlog;             /* Replication backlog for partial syncs */
+    // 复制积压缓冲区backlog的大小
     long long repl_backlog_size;    /* Backlog circular buffer size */
+    // 复制积压缓冲区backlog中实际的数据长度
     long long repl_backlog_histlen; /* Backlog actual data length */
+    // 复制积压缓冲区backlog当前的偏移量，下次写操作的下标
     long long repl_backlog_idx;     /* Backlog circular buffer current offset */
+    // 记录复制的偏移量，backlog的第一个字节的逻辑位置是master_repl_offset的下一个字节
     long long repl_backlog_off;     /* Replication offset of first byte in the
                                        backlog buffer. */
+    // 没有从节点，backlog被释放的时间
     time_t repl_backlog_time_limit; /* Time without slaves after the backlog
                                        gets released. */
     // 没有从节点的时间
@@ -1120,41 +1150,65 @@ struct redisServer {
                                        Only valid if server.slaves len is 0. */
     // 执行写操作的最少的从节点个数
     int repl_min_slaves_to_write;   /* Min number of slaves to write. */
-    //
+    // 最小数量的从节点的最大延迟值
     int repl_min_slaves_max_lag;    /* Max lag of <count> slaves to write. */
     int repl_good_slaves_count;     /* Number of slaves with lag <= max_lag. */
+    // 无盘同步，直接将RDB文件发送给socket
     int repl_diskless_sync;         /* Send RDB to slaves sockets directly. */
+    // 延迟开始无盘同步的时间
     int repl_diskless_sync_delay;   /* Delay to start a diskless repl BGSAVE. */
     /* Replication (slave) ×××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××*/
+    // 认证密码
     char *masterauth;               /* AUTH with this password with master */
+    // 主节点的主机名(IP)
     char *masterhost;               /* Hostname of master */
+    // 主节点的端口
     int masterport;                 /* Port of master */
+    // 复制主从连接超时时间
     int repl_timeout;               /* Timeout after N seconds of master idle */
-    // client是主服务器对于这个从节点
+    // client是主服务器，对于这个从节点
     client *master;     /* Client that is master for this slave */
+    // 主节点的同步缓存
     client *cached_master; /* Cached master to be reused for PSYNC. */
+    // 同步IO调用的超时时间
     int repl_syncio_timeout; /* Timeout for synchronous I/O calls */
     int repl_state;          /* Replication status if the instance is a slave */
+    // 同步期间从主节点读到的RDB的大小
     off_t repl_transfer_size; /* Size of RDB to read from master during sync. */
+    // 同步期间从主节点读到的RDB的总量
     off_t repl_transfer_read; /* Amount of RDB read from master during sync. */
+    // 最近一个执行fsync的偏移量
     off_t repl_transfer_last_fsync_off; /* Offset when we fsync-ed last time. */
+    // 从节点和主节点的同步套接字
     int repl_transfer_s;     /* Slave -> Master SYNC socket */
+    // 保存RDB文件的临时文件描述符
     int repl_transfer_fd;    /* Slave -> Master SYNC temp file descriptor */
+    // 保存RDB文件的临时文件名
     char *repl_transfer_tmpfile; /* Slave-> master SYNC temp file name */
+    // 最近一次读到RDB文件内容的时间
     time_t repl_transfer_lastio; /* Unix time of the latest read, for timeout */
     // 当连接下线后，是否维护旧的数据
     int repl_serve_stale_data; /* Serve stale data when link is down? */
     int repl_slave_ro;          /* Slave is read only? */
+    // 连接断开的时长
     time_t repl_down_since; /* Unix time at which link with master went down */
+    // 执行SYNC命令后是否关闭TCP_NODELAY
     int repl_disable_tcp_nodelay;   /* Disable TCP_NODELAY after SYNC? */
     int slave_priority;             /* Reported in INFO and used by Sentinel. */
+    // 发送给主节点的从节点端口
     int slave_announce_port;        /* Give the master this listening port. */
+    // 发送给主节点的IP
     char *slave_announce_ip;        /* Give the master this ip address. */
+    // 主节点的运行ID
     char repl_master_runid[CONFIG_RUN_ID_SIZE+1];  /* Master run id for PSYNC.*/
+    // 主节点PSYNC的偏移量
     long long repl_master_initial_offset;         /* Master PSYNC offset. */
     /* Replication script cache. ××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××*/
+    // 保存SHA1键的字典
     dict *repl_scriptcache_dict;        /* SHA1 all slaves are aware of. */
+    // 用作环形队列的链表
     list *repl_scriptcache_fifo;        /* First in, first out LRU eviction. */
+    // 最大缓存脚本数
     unsigned int repl_scriptcache_size; /* Max number of elements. */
     /* Synchronous replication. ××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××*/
     // 等待 WAIT 命令的client链表
@@ -1164,6 +1218,7 @@ struct redisServer {
     /* Limits ××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××*/
     // 同时最多连接的client的数量
     unsigned int maxclients;            /* Max number of simultaneous clients */
+    // 服务器最多使用的内存字节数
     unsigned long long maxmemory;   /* Max number of memory bytes to use */
     // 键占用内存的回收策略
     int maxmemory_policy;           /* Policy for key eviction */
