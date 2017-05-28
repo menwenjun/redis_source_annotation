@@ -26,5 +26,6 @@
 | redis 网络链接库，负责发送/接收命令、创建/销毁redis客户端、通信协议分析、CLIENT命令实现等工作 | networking.c 和 server.c（client结构等） |
 | redis 单机服务器实现，包括命令的执行，周期性任务serverCron()，maxmemory的策略、服务器main()函数 |        server.c 和 server.h         |
 |         redis 复制(replication)功能          |           replication.c            |
+|           redis 哨兵(Sentinel)实现           |             sentinel.c             |
 
  
