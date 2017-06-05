@@ -27,5 +27,6 @@
 | redis 单机服务器实现，包括命令的执行，周期性任务serverCron()，maxmemory的策略、服务器main()函数 |        server.c 和 server.h         |
 |         redis 复制(replication)功能          |           replication.c            |
 |           redis 哨兵(Sentinel)实现           |             sentinel.c             |
+|           redis 集群(Cluster)实现            |       cluster.c 和 cluster.h        |
 
  

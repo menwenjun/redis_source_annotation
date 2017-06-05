@@ -265,6 +265,7 @@ typedef long long mstime_t; /* 毫秒时间类型millisecond time type. */
                                   server.unblocked_clients */
 // 表示该客户端是一个专门处理lua脚本的伪客户端
 #define CLIENT_LUA (1<<8) /* This is a non connected client used by Lua */
+// 发送了ASKING命令
 #define CLIENT_ASKING (1<<9)     /* Client issued the ASKING command */
 // 正要关闭的client
 #define CLIENT_CLOSE_ASAP (1<<10)/* Close this client ASAP */
@@ -843,6 +844,7 @@ struct redisServer {
     dict *commands;             /* Command table */
     // rename之前的命令表
     dict *orig_commands;        /* Command table before command renaming. */
+    // 事件循环
     aeEventLoop *el;
     // 服务器的LRU时钟
     unsigned lruclock:LRU_BITS; /* Clock for LRU eviction */
@@ -895,6 +897,7 @@ struct redisServer {
     // 取消暂停状态的时间
     mstime_t clients_pause_end_time; /* Time when we undo clients_paused */
     char neterr[ANET_ERR_LEN];   /* Error buffer for anet.c */
+    // 迁移缓存套接字的字典，键是host:ip，值是TCP socket的的结构
     dict *migrate_cached_sockets;/* MIGRATE cached sockets */
     uint64_t next_client_id;    /* Next client unique ID. Incremental. */
     // 受保护模式，不接受外部的连接
@@ -1260,13 +1263,17 @@ struct redisServer {
     /* Cluster ××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××*/
     // 集群模式是否开启
     int cluster_enabled;      /* Is cluster enabled? */
+    // 集群节点超时时间
     mstime_t cluster_node_timeout; /* Cluster node timeout. */
 
     char *cluster_configfile; /* Cluster auto-generated config file name. */
     // 集群的状态
     struct clusterState *cluster;  /* State of the cluster */
+    // 集群迁移障碍的节点数
     int cluster_migration_barrier; /* Cluster replicas migration barrier. */
+    // 从节点故障转移的最长复制数据时间
     int cluster_slave_validity_factor; /* Slave max data age for failover. */
+    // 如果为真，那么：如果有一个未指定的槽，那么将集群设置为下线状态
     int cluster_require_full_coverage; /* If true, put the cluster down if
                                           there is at least an uncovered slot.*/
     /* Scripting ××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××*/
