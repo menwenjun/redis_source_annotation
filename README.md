@@ -28,5 +28,6 @@
 |         redis 复制(replication)功能          |           replication.c            |
 |           redis 哨兵(Sentinel)实现           |             sentinel.c             |
 |           redis 集群(Cluster)实现            |       cluster.c 和 cluster.h        |
+|                redis 事务实现                |              multi.c               |
 
  

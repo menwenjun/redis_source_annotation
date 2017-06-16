@@ -257,6 +257,7 @@ typedef long long mstime_t; /* 毫秒时间类型millisecond time type. */
 // client处于事务环境中
 #define CLIENT_MULTI (1<<3)   /* This client is in a MULTI context */
 #define CLIENT_BLOCKED (1<<4) /* The client is waiting in a blocking operation */
+// 监视的键被修改，EXEC执行失败
 #define CLIENT_DIRTY_CAS (1<<5) /* Watched keys modified. EXEC will fail. */
 // 发送回复后要关闭client，当执行client kill命令等
 #define CLIENT_CLOSE_AFTER_REPLY (1<<6) /* Close after writing entire reply. */
@@ -270,6 +271,7 @@ typedef long long mstime_t; /* 毫秒时间类型millisecond time type. */
 // 正要关闭的client
 #define CLIENT_CLOSE_ASAP (1<<10)/* Close this client ASAP */
 #define CLIENT_UNIX_SOCKET (1<<11) /* Client connected via Unix domain socket */
+// 命令入队时错误
 #define CLIENT_DIRTY_EXEC (1<<12)  /* EXEC will fail for errors while queueing */
 // 强制进行回复
 #define CLIENT_MASTER_FORCE_REPLY (1<<13)  /* Queue replies even if is master */
@@ -581,17 +583,25 @@ typedef struct redisDb {
 } redisDb;
 
 /* Client MULTI/EXEC state */
+// 事务命令状态
 typedef struct multiCmd {
+    // 命令的参数列表
     robj **argv;
+    // 命令的参数个数
     int argc;
+    // 命令函数指针
     struct redisCommand *cmd;
 } multiCmd;
 
-// 事物状态
+// 事务状态
 typedef struct multiState {
+    // 事务命令队列数组
     multiCmd *commands;     /* Array of MULTI commands */
+    // 事务命令的个数
     int count;              /* Total number of MULTI commands */
+    // 同步复制的标识
     int minreplicas;        /* MINREPLICAS for synchronous replication */
+    // 同步复制的超时时间
     time_t minreplicas_timeout; /* MINREPLICAS timeout as unixtime. */
 } multiState;
 
